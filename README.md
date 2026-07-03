@@ -1,32 +1,29 @@
-# React + TypeScript + Vite
+# NA Flute Composer
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A web app for Native American flute players to compose and capture melodies using **Nakai tablature** and finger-hole diagrams — replacing paper sketching with an easy UI and PDF export.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Tap finger holes on a visual flute to enter fingerings
+- Live Nakai staff preview (treble clef, 4 sharps) with finger diagrams below each note
+- Melody timeline with measure grouping
+- Auto-save to IndexedDB (works offline as a PWA)
+- Export shareable PDF scores
 
-## React Compiler
+## Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+pnpm install
+pnpm dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Build
+
+```bash
+pnpm build
+pnpm preview
+```
+
+## Notation
+
+This app follows the de facto Nakai tablature standard: note positions on the staff represent fingerings (intervals from the fundamental), not concert pitch, so the same sheet works on any pentatonic minor flute.
