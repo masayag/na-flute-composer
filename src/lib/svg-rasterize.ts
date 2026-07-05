@@ -1,19 +1,55 @@
-const VEXFLOW_FONT_HOST = 'https://cdn.jsdelivr.net/npm/@vexflow-fonts/'
+import { Font } from 'vexflow'
 
-const VEXFLOW_FONT_CSS = `
+let fontCssPromise: Promise<string> | null = null
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunkSize = 8192
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+  }
+  return btoa(binary)
+}
+
+async function fetchFontDataUri(fontName: string): Promise<string> {
+  const url = Font.getURLForFont(fontName)
+  if (!url) throw new Error(`Font ${fontName} is unavailable for PDF export`)
+
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to load ${fontName} for PDF export`)
+  }
+
+  const base64 = arrayBufferToBase64(await response.arrayBuffer())
+  return `data:font/woff2;base64,${base64}`
+}
+
+async function getVexflowFontCss(): Promise<string> {
+  if (!fontCssPromise) {
+    fontCssPromise = (async () => {
+      const [bravura, academico] = await Promise.all([
+        fetchFontDataUri('Bravura'),
+        fetchFontDataUri('Academico'),
+      ])
+      return `
 @font-face {
   font-family: 'Bravura';
-  src: url('${VEXFLOW_FONT_HOST}bravura/bravura.woff2') format('woff2');
+  src: url('${bravura}') format('woff2');
   font-display: block;
 }
 @font-face {
   font-family: 'Academico';
-  src: url('${VEXFLOW_FONT_HOST}academico/academico.woff2') format('woff2');
+  src: url('${academico}') format('woff2');
   font-display: swap;
 }
 `
+    })()
+  }
+  return fontCssPromise
+}
 
-function prepareSvgForRasterize(svg: SVGSVGElement): SVGSVGElement {
+async function prepareSvgForRasterize(svg: SVGSVGElement): Promise<SVGSVGElement> {
   const clone = svg.cloneNode(true) as SVGSVGElement
   const ns = 'http://www.w3.org/2000/svg'
 
@@ -23,7 +59,7 @@ function prepareSvgForRasterize(svg: SVGSVGElement): SVGSVGElement {
 
   const defs = document.createElementNS(ns, 'defs')
   const style = document.createElementNS(ns, 'style')
-  style.textContent = VEXFLOW_FONT_CSS
+  style.textContent = await getVexflowFontCss()
   defs.appendChild(style)
   clone.insertBefore(defs, clone.firstChild)
 
@@ -36,7 +72,7 @@ async function svgToCanvas(
   height: number,
   scale: number,
 ): Promise<HTMLCanvasElement> {
-  const prepared = prepareSvgForRasterize(svg)
+  const prepared = await prepareSvgForRasterize(svg)
   prepared.setAttribute('width', String(width))
   prepared.setAttribute('height', String(height))
 
