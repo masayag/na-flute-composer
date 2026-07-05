@@ -3,8 +3,9 @@ import { NakaiScore } from '../components/NakaiScore'
 import { exportSongToPdf } from './pdf-export'
 import type { Song } from './types'
 
-function waitForScoreRender(): Promise<void> {
-  return new Promise((resolve) => {
+async function waitForScoreRender(): Promise<void> {
+  await document.fonts.ready
+  await new Promise<void>((resolve) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setTimeout(resolve, 50)
