@@ -4,7 +4,7 @@ import type { Song } from './types'
 
 const UNSUPPORTED_COLOR_FN = /oklch|oklab|lch\(|lab\(|color\(/i
 
-const STYLE_PROPERTIES = [
+const COLOR_PROPERTIES = [
   'color',
   'background-color',
   'background',
@@ -23,6 +23,13 @@ const STYLE_PROPERTIES = [
   'box-shadow',
   'fill',
   'stroke',
+  'stop-color',
+  'flood-color',
+  'lighting-color',
+  '-webkit-text-stroke-color',
+] as const
+
+const LAYOUT_PROPERTIES = [
   'font-size',
   'font-weight',
   'font-family',
@@ -64,15 +71,37 @@ const STYLE_PROPERTIES = [
   'align-items',
   'justify-content',
   'gap',
+  'vertical-align',
 ] as const
 
+const STYLE_PROPERTIES = [...COLOR_PROPERTIES, ...LAYOUT_PROPERTIES] as const
+
+const SVG_COLOR_ATTRS = ['fill', 'stroke', 'stop-color', 'color', 'flood-color', 'lighting-color'] as const
+
+/** Resolve any CSS color (including oklch) to rgb/hex via canvas. */
 function resolveColorToRgb(color: string, doc: Document): string {
-  const probe = doc.createElement('span')
-  probe.style.color = color
-  doc.body.appendChild(probe)
-  const resolved = doc.defaultView?.getComputedStyle(probe).color ?? color
-  doc.body.removeChild(probe)
-  return resolved
+  const trimmed = color.trim()
+  if (!trimmed || trimmed === 'none' || trimmed === 'transparent') return trimmed
+  if (!UNSUPPORTED_COLOR_FN.test(trimmed)) return trimmed
+
+  const canvas = doc.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return trimmed
+
+  try {
+    ctx.fillStyle = '#000000'
+    ctx.fillStyle = trimmed
+    return ctx.fillStyle
+  } catch {
+    const probe = doc.createElement('span')
+    probe.style.color = trimmed
+    doc.body.appendChild(probe)
+    const resolved = doc.defaultView?.getComputedStyle(probe).color ?? trimmed
+    doc.body.removeChild(probe)
+    return resolved
+  }
 }
 
 function replaceUnsupportedColorFunctions(value: string, doc: Document): string {
@@ -84,39 +113,98 @@ function replaceUnsupportedColorFunctions(value: string, doc: Document): string 
   )
 }
 
-/** html2canvas cannot parse Tailwind 4 oklch() colors from stylesheets. */
-function sanitizeCloneForHtml2Canvas(
-  clonedDoc: Document,
-  clonedRoot: HTMLElement,
-  sourceRoot: HTMLElement,
-): void {
+function sanitizeStyleAttribute(style: string, doc: Document): string {
+  if (!UNSUPPORTED_COLOR_FN.test(style)) return style
+  return style
+    .split(';')
+    .map((rule) => {
+      const colon = rule.indexOf(':')
+      if (colon === -1) return rule
+      const prop = rule.slice(0, colon).trim()
+      const val = rule.slice(colon + 1).trim()
+      if (!val || !UNSUPPORTED_COLOR_FN.test(val)) return rule
+      return `${prop}: ${replaceUnsupportedColorFunctions(val, doc)}`
+    })
+    .join(';')
+}
+
+function stripStylesheets(clonedDoc: Document): void {
   clonedDoc.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove())
+  clonedDoc.documentElement.style.backgroundColor = '#ffffff'
+  clonedDoc.documentElement.style.color = '#2c1810'
+  if (clonedDoc.body) {
+    clonedDoc.body.style.backgroundColor = '#ffffff'
+    clonedDoc.body.style.color = '#2c1810'
+  }
+}
 
-  const win = clonedDoc.defaultView ?? window
+/**
+ * Inline computed styles as rgb/hex on every node.
+ * Must run on the SOURCE tree before html2canvas — it parses getComputedStyle during
+ * its initial clone pass (before onclone), so Tailwind oklch values crash if left in place.
+ */
+function inlineComputedStylesAsRgb(root: HTMLElement, doc: Document): void {
+  const view = doc.defaultView ?? window
+  const elements: Element[] = [root, ...root.querySelectorAll('*')]
 
-  const walk = (cloneEl: Element, sourceEl: Element) => {
-    const cloneHtml = cloneEl as HTMLElement
-    const sourceHtml = sourceEl as HTMLElement
+  for (const el of elements) {
+    const html = el as HTMLElement
+    html.removeAttribute('class')
 
-    cloneHtml.removeAttribute('class')
-
-    const computed = win.getComputedStyle(sourceHtml)
+    const computed = view.getComputedStyle(html)
     for (const prop of STYLE_PROPERTIES) {
       let value = computed.getPropertyValue(prop)
-      if (!value || value === 'none') continue
-      value = replaceUnsupportedColorFunctions(value, clonedDoc)
-      cloneHtml.style.setProperty(prop, value)
+      if (!value || value === 'none' || value === 'normal') continue
+      if (COLOR_PROPERTIES.includes(prop as (typeof COLOR_PROPERTIES)[number])) {
+        value = replaceUnsupportedColorFunctions(value, doc)
+      }
+      html.style.setProperty(prop, value)
     }
 
-    const sourceChildren = Array.from(sourceEl.children)
-    const cloneChildren = Array.from(cloneEl.children)
-    for (let i = 0; i < sourceChildren.length; i++) {
-      const cloneChild = cloneChildren[i]
-      if (cloneChild) walk(cloneChild, sourceChildren[i])
+    const styleAttr = html.getAttribute('style')
+    if (styleAttr && UNSUPPORTED_COLOR_FN.test(styleAttr)) {
+      html.setAttribute('style', sanitizeStyleAttribute(styleAttr, doc))
+    }
+
+    if (el instanceof SVGElement) {
+      for (const attr of SVG_COLOR_ATTRS) {
+        const attrVal = el.getAttribute(attr)
+        if (attrVal && UNSUPPORTED_COLOR_FN.test(attrVal)) {
+          el.setAttribute(attr, resolveColorToRgb(attrVal, doc))
+        }
+      }
     }
   }
+}
 
-  walk(clonedRoot, sourceRoot)
+function assertNoOklch(root: HTMLElement, context: string): void {
+  if (!import.meta.env.DEV) return
+  const html = root.outerHTML
+  if (UNSUPPORTED_COLOR_FN.test(html)) {
+    console.warn(`[pdf-export] ${context}: oklch/oklab still present in export tree`)
+  }
+}
+
+function buildScoreSection(scoreElement: HTMLElement): HTMLElement {
+  const section = document.createElement('div')
+  section.style.marginTop = '16px'
+
+  const label = document.createElement('h2')
+  label.textContent = 'Score'
+  label.style.margin = '0 0 12px'
+  label.style.fontSize = '16px'
+  label.style.fontWeight = '600'
+  label.style.color = '#78350f'
+  section.appendChild(label)
+
+  const scoreContainer = scoreElement.querySelector('.score-container')
+  if (scoreContainer) {
+    section.appendChild(scoreContainer.cloneNode(true))
+    return section
+  }
+
+  section.appendChild(scoreElement.cloneNode(true))
+  return section
 }
 
 export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Promise<void> {
@@ -124,7 +212,8 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
     throw new Error('Please add a title before exporting.')
   }
 
-  const wrapper = document.createElement('div')
+  const doc = document
+  const wrapper = doc.createElement('div')
   wrapper.style.position = 'fixed'
   wrapper.style.left = '-9999px'
   wrapper.style.top = '0'
@@ -134,12 +223,12 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
   wrapper.style.fontFamily = 'Segoe UI, system-ui, sans-serif'
   wrapper.style.color = '#2c1810'
 
-  const header = document.createElement('div')
+  const header = doc.createElement('div')
   header.style.marginBottom = '24px'
   header.style.borderBottom = '2px solid #8b6914'
   header.style.paddingBottom = '16px'
 
-  const title = document.createElement('h1')
+  const title = doc.createElement('h1')
   title.textContent = song.title
   title.style.margin = '0 0 8px'
   title.style.fontSize = '28px'
@@ -147,7 +236,7 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
   header.appendChild(title)
 
   if (song.composer?.trim()) {
-    const composer = document.createElement('p')
+    const composer = doc.createElement('p')
     composer.textContent = `Composer: ${song.composer}`
     composer.style.margin = '0 0 4px'
     composer.style.fontSize = '14px'
@@ -156,7 +245,7 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
   }
 
   if (song.recommendedKey?.trim()) {
-    const keyLine = document.createElement('p')
+    const keyLine = doc.createElement('p')
     keyLine.textContent = `Recommended flute key: ${song.recommendedKey}`
     keyLine.style.margin = '0 0 4px'
     keyLine.style.fontSize = '14px'
@@ -164,7 +253,7 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
     header.appendChild(keyLine)
   }
 
-  const date = document.createElement('p')
+  const date = doc.createElement('p')
   date.textContent = `Exported: ${new Date().toLocaleDateString()}`
   date.style.margin = '0'
   date.style.fontSize = '12px'
@@ -172,22 +261,21 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
   header.appendChild(date)
 
   wrapper.appendChild(header)
+  wrapper.appendChild(buildScoreSection(scoreElement))
 
-  const scoreClone = scoreElement.cloneNode(true) as HTMLElement
-  scoreClone.style.transform = 'scale(1)'
-  scoreClone.style.transformOrigin = 'top left'
-  wrapper.appendChild(scoreClone)
-
-  document.body.appendChild(wrapper)
+  doc.body.appendChild(wrapper)
 
   try {
+    inlineComputedStylesAsRgb(wrapper, doc)
+    assertNoOklch(wrapper, 'after inlineComputedStylesAsRgb')
+
     const canvas = await html2canvas(wrapper, {
       scale: 2,
       backgroundColor: '#ffffff',
       useCORS: true,
       logging: false,
-      onclone: (clonedDoc, clonedElement) => {
-        sanitizeCloneForHtml2Canvas(clonedDoc, clonedElement, wrapper)
+      onclone: (clonedDoc) => {
+        stripStylesheets(clonedDoc)
       },
     })
 
@@ -216,6 +304,6 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
     const filename = `${song.title.replace(/[^\w\s-]/g, '').trim() || 'melody'}.pdf`
     pdf.save(filename)
   } finally {
-    document.body.removeChild(wrapper)
+    doc.body.removeChild(wrapper)
   }
 }
