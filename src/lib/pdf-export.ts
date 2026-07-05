@@ -2,6 +2,123 @@ import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import type { Song } from './types'
 
+const UNSUPPORTED_COLOR_FN = /oklch|oklab|lch\(|lab\(|color\(/i
+
+const STYLE_PROPERTIES = [
+  'color',
+  'background-color',
+  'background',
+  'border-color',
+  'border-top-color',
+  'border-right-color',
+  'border-bottom-color',
+  'border-left-color',
+  'border',
+  'border-top',
+  'border-right',
+  'border-bottom',
+  'border-left',
+  'outline-color',
+  'text-decoration-color',
+  'box-shadow',
+  'fill',
+  'stroke',
+  'font-size',
+  'font-weight',
+  'font-family',
+  'font-style',
+  'line-height',
+  'text-align',
+  'margin',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'padding',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'border-radius',
+  'opacity',
+  'display',
+  'position',
+  'top',
+  'left',
+  'right',
+  'bottom',
+  'width',
+  'height',
+  'min-width',
+  'min-height',
+  'max-width',
+  'max-height',
+  'transform',
+  'transform-origin',
+  'overflow',
+  'overflow-x',
+  'overflow-y',
+  'white-space',
+  'flex',
+  'flex-direction',
+  'align-items',
+  'justify-content',
+  'gap',
+] as const
+
+function resolveColorToRgb(color: string, doc: Document): string {
+  const probe = doc.createElement('span')
+  probe.style.color = color
+  doc.body.appendChild(probe)
+  const resolved = doc.defaultView?.getComputedStyle(probe).color ?? color
+  doc.body.removeChild(probe)
+  return resolved
+}
+
+function replaceUnsupportedColorFunctions(value: string, doc: Document): string {
+  if (!value || !UNSUPPORTED_COLOR_FN.test(value)) return value
+
+  return value.replace(
+    /(?:oklch|oklab|lch|lab|color)\([^)]*\)/gi,
+    (match) => resolveColorToRgb(match, doc),
+  )
+}
+
+/** html2canvas cannot parse Tailwind 4 oklch() colors from stylesheets. */
+function sanitizeCloneForHtml2Canvas(
+  clonedDoc: Document,
+  clonedRoot: HTMLElement,
+  sourceRoot: HTMLElement,
+): void {
+  clonedDoc.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove())
+
+  const win = clonedDoc.defaultView ?? window
+
+  const walk = (cloneEl: Element, sourceEl: Element) => {
+    const cloneHtml = cloneEl as HTMLElement
+    const sourceHtml = sourceEl as HTMLElement
+
+    cloneHtml.removeAttribute('class')
+
+    const computed = win.getComputedStyle(sourceHtml)
+    for (const prop of STYLE_PROPERTIES) {
+      let value = computed.getPropertyValue(prop)
+      if (!value || value === 'none') continue
+      value = replaceUnsupportedColorFunctions(value, clonedDoc)
+      cloneHtml.style.setProperty(prop, value)
+    }
+
+    const sourceChildren = Array.from(sourceEl.children)
+    const cloneChildren = Array.from(cloneEl.children)
+    for (let i = 0; i < sourceChildren.length; i++) {
+      const cloneChild = cloneChildren[i]
+      if (cloneChild) walk(cloneChild, sourceChildren[i])
+    }
+  }
+
+  walk(clonedRoot, sourceRoot)
+}
+
 export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Promise<void> {
   if (!song.title.trim()) {
     throw new Error('Please add a title before exporting.')
@@ -69,6 +186,9 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
       backgroundColor: '#ffffff',
       useCORS: true,
       logging: false,
+      onclone: (clonedDoc, clonedElement) => {
+        sanitizeCloneForHtml2Canvas(clonedDoc, clonedElement, wrapper)
+      },
     })
 
     const imgData = canvas.toDataURL('image/png')

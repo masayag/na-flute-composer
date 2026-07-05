@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PreviewPlayButton } from '../components/PreviewPlayButton'
 import { createEmptySong, deleteSong, duplicateSong, listSongs, saveSong } from '../lib/db'
+import { exportSongToPdfFromLibrary } from '../lib/pdf-export-from-song'
 import type { Song } from '../lib/types'
 
 export function LibraryPage() {
   const [songs, setSongs] = useState<Song[]>([])
   const [loading, setLoading] = useState(true)
+  const [exportingId, setExportingId] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const refresh = useCallback(async () => {
@@ -40,6 +43,18 @@ export function LibraryPage() {
     refresh()
   }
 
+  const handleExportPdf = async (song: Song) => {
+    setExportError(null)
+    setExportingId(song.id)
+    try {
+      await exportSongToPdfFromLibrary(song)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setExportingId(null)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#faf6f0]">
       <header className="border-b border-amber-200 bg-white/80 backdrop-blur">
@@ -59,6 +74,11 @@ export function LibraryPage() {
       </header>
 
       <main className="mx-auto max-w-3xl p-4">
+        {exportError && (
+          <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {exportError}
+          </p>
+        )}
         {loading ? (
           <p className="text-amber-700">Loading…</p>
         ) : songs.length === 0 ? (
@@ -104,6 +124,15 @@ export function LibraryPage() {
                   >
                     Edit
                   </Link>
+                  <button
+                    type="button"
+                    title="Export PDF"
+                    onClick={() => handleExportPdf(song)}
+                    disabled={exportingId === song.id}
+                    className="min-h-11 rounded-lg border border-amber-300 px-4 py-2 text-sm text-amber-800 hover:bg-amber-50 disabled:opacity-60"
+                  >
+                    {exportingId === song.id ? 'Exporting…' : 'Export PDF'}
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleDuplicate(song.id)}

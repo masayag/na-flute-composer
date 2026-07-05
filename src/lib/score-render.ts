@@ -25,8 +25,11 @@ export interface NotePosition {
 
 const STAVE_WIDTH = 520
 const STAVE_X = 10
-const FINGER_DIAGRAM_OFFSET = 78
-const SYSTEM_GAP = 130
+const STAVE_SVG_HEIGHT = 90
+/** Clearance below the stave SVG before finger diagrams (note stems reach ~85px). */
+const FINGER_DIAGRAM_GAP = 14
+const FINGER_DIAGRAM_OFFSET = STAVE_SVG_HEIGHT + FINGER_DIAGRAM_GAP
+const SYSTEM_BOTTOM_PADDING = 16
 
 function durationToVex(d: NoteEvent['duration'], dotted?: boolean): string {
   return dotted ? `${d}d` : d
@@ -67,10 +70,12 @@ export function renderScoreWithFingerDiagrams(
 
   const systems: ScoreSystem[] = []
   let totalHeight = 20
+  const systemHeight =
+    FINGER_DIAGRAM_OFFSET + Math.ceil(fingerLayout.height) + SYSTEM_BOTTOM_PADDING
+  const systemGap = systemHeight + 8
 
   measureChunks.forEach((chunk, systemIndex) => {
     const allNotes = chunk.flatMap((c) => c.measure)
-    const systemHeight = 160
     const wrapper = document.createElement('div')
     wrapper.style.position = 'relative'
     wrapper.style.width = `${STAVE_WIDTH + STAVE_X * 2}px`
@@ -85,7 +90,7 @@ export function renderScoreWithFingerDiagrams(
     wrapper.appendChild(svgDiv)
 
     const renderer = new Renderer(svgDiv, Renderer.Backends.SVG)
-    renderer.resize(STAVE_WIDTH + STAVE_X * 2, 90)
+    renderer.resize(STAVE_WIDTH + STAVE_X * 2, STAVE_SVG_HEIGHT)
     const ctx = renderer.getContext()
 
     const stave = new Stave(STAVE_X, 10, STAVE_WIDTH)
@@ -132,12 +137,12 @@ export function renderScoreWithFingerDiagrams(
 
     systems.push({
       y: totalHeight,
-      staveHeight: 90,
+      staveHeight: STAVE_SVG_HEIGHT,
       measureIndices: chunk.map((c) => c.index),
       notePositions,
     })
 
-    totalHeight += SYSTEM_GAP
+    totalHeight += systemGap
   })
 
   return {
