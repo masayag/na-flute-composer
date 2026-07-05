@@ -1,4 +1,5 @@
 import { Beam, Formatter, Renderer, Stave, StaveNote, Voice } from 'vexflow'
+import { computeFingerDiagramLayout } from '../components/FingerDiagram'
 import type { NoteEvent, Song } from './types'
 import { fingeringToStaffKey, NAKAI_KEY_SIGNATURE } from './nakai/fingering-map'
 
@@ -57,6 +58,8 @@ export function renderScoreWithFingerDiagrams(
 
   const nonEmpty = song.measures.some((m) => m.length > 0)
   const measures = nonEmpty ? song.measures.filter((m) => m.length > 0) : [[]]
+  const holeCount = song.fluteType === '5-hole' ? 5 : 6
+  const fingerLayout = computeFingerDiagramLayout(holeCount, 48)
   const measureChunks = chunkMeasures(
     measures.map((m, index) => ({ measure: m, index })),
     2,
@@ -118,10 +121,10 @@ export function renderScoreWithFingerDiagrams(
         const fingerHost = document.createElement('div')
         fingerHost.className = 'finger-diagram-host'
         fingerHost.style.position = 'absolute'
-        fingerHost.style.left = `${absX - 14}px`
+        fingerHost.style.left = `${absX - fingerLayout.width / 2}px`
         fingerHost.style.top = `${FINGER_DIAGRAM_OFFSET}px`
-        fingerHost.style.width = '28px'
-        fingerHost.style.height = '48px'
+        fingerHost.style.width = `${Math.ceil(fingerLayout.width)}px`
+        fingerHost.style.height = `${Math.ceil(fingerLayout.height)}px`
         fingerHost.dataset.noteId = event.id
         wrapper.appendChild(fingerHost)
       })

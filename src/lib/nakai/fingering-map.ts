@@ -43,11 +43,11 @@ export function defaultFingering(fluteType: FluteType): Fingering {
 export const NAKAI_KEY_SIGNATURE = 'E'
 
 export const DURATION_LABELS: Record<string, string> = {
-  w: 'Whole',
-  h: 'Half',
-  q: 'Quarter',
-  '8': 'Eighth',
-  '16': '16th',
+  w: 'Whole note (4 beats)',
+  h: 'Half note (2 beats)',
+  q: 'Quarter note (1 beat)',
+  '8': 'Eighth note (½ beat)',
+  '16': 'Sixteenth note (¼ beat)',
 }
 
 export const DURATION_SYMBOLS: Record<string, string> = {

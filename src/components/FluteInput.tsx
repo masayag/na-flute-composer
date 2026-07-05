@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import type { Duration, Fingering, FluteType } from '../lib/types'
+import { useCallback, useEffect, useRef } from 'react'
+import type { Duration, Fingering, FluteType, HoleState } from '../lib/types'
 import { defaultFingering, DURATION_LABELS, DURATION_SYMBOLS } from '../lib/nakai/fingering-map'
 import { FingerDiagram } from './FingerDiagram'
 
@@ -14,6 +14,10 @@ interface FluteInputProps {
 
 const DURATIONS: Duration[] = ['w', 'h', 'q', '8', '16']
 
+function cycleHoleState(current: HoleState): HoleState {
+  return current === 'closed' ? 'open' : current === 'open' ? 'half' : 'closed'
+}
+
 export function FluteInput({
   fingering,
   duration,
@@ -22,14 +26,50 @@ export function FluteInput({
   onDurationChange,
   onAddNote,
 }: FluteInputProps) {
-  const holeCount = fluteType === '5-hole' ? 5 : 6
+  const dragPaintStateRef = useRef<HoleState | null>(null)
 
-  const toggleHole = useCallback(
-    (index: number) => {
+  const setHoleState = useCallback(
+    (index: number, state: HoleState) => {
+      if (fingering.holes[index] === state) return
       const holes = [...fingering.holes]
-      const current = holes[index]
-      holes[index] = current === 'closed' ? 'open' : current === 'open' ? 'half' : 'closed'
+      holes[index] = state
       onFingeringChange({ holes })
+    },
+    [fingering.holes, onFingeringChange],
+  )
+
+  const handleHolePointerDown = useCallback(
+    (index: number) => {
+      const paintState = cycleHoleState(fingering.holes[index])
+      dragPaintStateRef.current = paintState
+      setHoleState(index, paintState)
+    },
+    [fingering.holes, setHoleState],
+  )
+
+  const handleHolePointerEnter = useCallback(
+    (index: number) => {
+      const paintState = dragPaintStateRef.current
+      if (paintState !== null) setHoleState(index, paintState)
+    },
+    [setHoleState],
+  )
+
+  useEffect(() => {
+    const endDrag = () => {
+      dragPaintStateRef.current = null
+    }
+    window.addEventListener('pointerup', endDrag)
+    window.addEventListener('pointercancel', endDrag)
+    return () => {
+      window.removeEventListener('pointerup', endDrag)
+      window.removeEventListener('pointercancel', endDrag)
+    }
+  }, [])
+
+  const setAllHoles = useCallback(
+    (state: HoleState) => {
+      onFingeringChange({ holes: fingering.holes.map(() => state) })
     },
     [fingering.holes, onFingeringChange],
   )
@@ -41,11 +81,32 @@ export function FluteInput({
       <h3 className="text-sm font-semibold text-amber-900">Tap holes to set fingering</h3>
       <FingerDiagram
         fingering={fingering}
-        size={holeCount === 5 ? 140 : 160}
+        size={120}
         interactive
-        onHoleToggle={toggleHole}
+        onHolePointerDown={handleHolePointerDown}
+        onHolePointerEnter={handleHolePointerEnter}
       />
-      <p className="text-xs text-amber-700">Tap cycles: closed → open → half</p>
+      <p className="text-xs text-amber-700">
+        Tap cycles: closed → open → half. Drag to paint the same state.
+      </p>
+      <div className="flex flex-wrap justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setAllHoles('closed')}
+          className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-50"
+          title="Close every hole"
+        >
+          All closed
+        </button>
+        <button
+          type="button"
+          onClick={() => setAllHoles('open')}
+          className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-50"
+          title="Open every hole"
+        >
+          All open
+        </button>
+      </div>
       <div className="flex flex-wrap justify-center gap-2">
         {DURATIONS.map((d) => (
           <button
