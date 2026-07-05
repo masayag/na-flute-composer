@@ -2,6 +2,8 @@
 
 A web app for Native American flute players to compose and capture melodies using **Nakai tablature** and finger-hole diagrams — replacing paper sketching with an easy UI and PDF export.
 
+![NA Flute Composer — compose melodies with Nakai tablature](docs/screenshot.png)
+
 ## Features
 
 - Tap finger holes on a visual flute to enter fingerings

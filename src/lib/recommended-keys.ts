@@ -1,0 +1,20 @@
+/** Common pentatonic minor keys for Native American flutes. */
+export const COMMON_FLUTE_KEYS = [
+  'Am',
+  'Gm',
+  'F#m',
+  'Em',
+  'Dm',
+  'Cm',
+  'Bm',
+  'Fm',
+  'Ebm',
+  'C#m',
+  'Bbm',
+  'A',
+  'G',
+  'F#',
+  'E',
+  'D',
+  'C',
+] as const

@@ -5,16 +5,12 @@ import { NakaiScore } from '../components/NakaiScore'
 import { NoteTimeline } from '../components/NoteTimeline'
 import { SongMetaForm } from '../components/SongMetaForm'
 import { useAutoSave, useSong } from '../hooks/useSong'
+import { usePlayback } from '../hooks/usePlayback'
+import { noteDurationBeats } from '../lib/duration-utils'
 import { defaultFingering } from '../lib/nakai/fingering-map'
 import '../lib/nakai/validate'
 import { exportSongToPdf } from '../lib/pdf-export'
 import type { Duration, Fingering, NoteEvent, Song } from '../lib/types'
-
-function noteDurationBeats(duration: Duration, dotted?: boolean): number {
-  const map: Record<Duration, number> = { w: 4, h: 2, q: 1, '8': 0.5, '16': 0.25 }
-  const beats = map[duration]
-  return dotted ? beats * 1.5 : beats
-}
 
 function measureBeats(measure: NoteEvent[]): number {
   return measure.reduce((sum, n) => sum + noteDurationBeats(n.duration, n.dotted), 0)
@@ -25,6 +21,7 @@ export function ComposerPage() {
   const navigate = useNavigate()
   const { song, updateSong, loading, error } = useSong(id)
   const { saving, lastSaved } = useAutoSave(song)
+  const { isPlaying, playingNoteId, toggle } = usePlayback(song)
 
   const [fingering, setFingering] = useState<Fingering>(() => defaultFingering('6-hole'))
   const [duration, setDuration] = useState<Duration>('q')
@@ -151,6 +148,17 @@ export function ComposerPage() {
             </span>
             <button
               type="button"
+              onClick={toggle}
+              className={`min-h-11 rounded-lg px-4 py-2 text-sm font-medium ${
+                isPlaying
+                  ? 'border border-amber-600 bg-amber-100 text-amber-900 hover:bg-amber-200'
+                  : 'border border-amber-300 bg-white text-amber-800 hover:bg-amber-50'
+              }`}
+            >
+              {isPlaying ? '■ Stop' : '▶ Play'}
+            </button>
+            <button
+              type="button"
               onClick={handleExportPdf}
               disabled={exporting}
               className="min-h-11 rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-60"
@@ -184,6 +192,7 @@ export function ComposerPage() {
           <NoteTimeline
             measures={song.measures}
             selectedNoteId={selectedNoteId}
+            playingNoteId={playingNoteId}
             onSelectNote={selectNote}
             onDeleteNote={deleteNote}
           />

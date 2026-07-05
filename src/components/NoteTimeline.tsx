@@ -5,6 +5,7 @@ import { FingerDiagram } from './FingerDiagram'
 interface NoteTimelineProps {
   measures: NoteEvent[][]
   selectedNoteId: string | null
+  playingNoteId?: string | null
   onSelectNote: (id: string) => void
   onDeleteNote: (id: string) => void
 }
@@ -12,6 +13,7 @@ interface NoteTimelineProps {
 export function NoteTimeline({
   measures,
   selectedNoteId,
+  playingNoteId = null,
   onSelectNote,
   onDeleteNote,
 }: NoteTimelineProps) {
@@ -34,6 +36,7 @@ export function NoteTimeline({
               key={note.id}
               note={note}
               selected={note.id === selectedNoteId}
+              playing={note.id === playingNoteId}
               onSelect={() => onSelectNote(note.id)}
               onDelete={() => onDeleteNote(note.id)}
               showBar={ni === measure.length - 1 && mi < measures.length - 1}
@@ -48,12 +51,14 @@ export function NoteTimeline({
 function NoteChip({
   note,
   selected,
+  playing,
   onSelect,
   onDelete,
   showBar,
 }: {
   note: NoteEvent
   selected: boolean
+  playing: boolean
   onSelect: () => void
   onDelete: () => void
   showBar: boolean
@@ -64,9 +69,11 @@ function NoteChip({
         type="button"
         onClick={onSelect}
         className={`flex min-h-11 flex-col items-center rounded-lg border px-2 py-1 transition ${
-          selected
-            ? 'border-amber-600 bg-amber-100 ring-2 ring-amber-400'
-            : 'border-amber-200 bg-amber-50 hover:bg-amber-100'
+          playing
+            ? 'border-green-600 bg-green-100 ring-2 ring-green-400'
+            : selected
+              ? 'border-amber-600 bg-amber-100 ring-2 ring-amber-400'
+              : 'border-amber-200 bg-amber-50 hover:bg-amber-100'
         }`}
       >
         <FingerDiagram fingering={note.fingering} size={36} />

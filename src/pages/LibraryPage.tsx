@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { PreviewPlayButton } from '../components/PreviewPlayButton'
 import { createEmptySong, deleteSong, duplicateSong, listSongs, saveSong } from '../lib/db'
 import type { Song } from '../lib/types'
 
@@ -88,11 +89,15 @@ export function LibraryPage() {
                   {song.composer && (
                     <p className="text-sm text-amber-700">{song.composer}</p>
                   )}
+                  {song.recommendedKey && (
+                    <p className="text-sm text-amber-600">Key: {song.recommendedKey}</p>
+                  )}
                   <p className="text-xs text-amber-500">
                     Updated {new Date(song.updatedAt).toLocaleString()}
                   </p>
                 </div>
                 <div className="flex gap-2">
+                  <PreviewPlayButton song={song} />
                   <Link
                     to={`/song/${song.id}`}
                     className="min-h-11 rounded-lg border border-amber-300 px-4 py-2 text-sm text-amber-800 hover:bg-amber-50"

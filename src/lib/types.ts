@@ -19,6 +19,8 @@ export interface Song {
   id: string
   title: string
   composer?: string
+  /** Recommended flute key, e.g. "Am", "Gm", "F#m". */
+  recommendedKey?: string
   timeSignature: [number, number]
   fluteType: FluteType
   measures: NoteEvent[][]

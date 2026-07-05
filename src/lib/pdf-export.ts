@@ -38,6 +38,15 @@ export async function exportSongToPdf(song: Song, scoreElement: HTMLElement): Pr
     header.appendChild(composer)
   }
 
+  if (song.recommendedKey?.trim()) {
+    const keyLine = document.createElement('p')
+    keyLine.textContent = `Recommended flute key: ${song.recommendedKey}`
+    keyLine.style.margin = '0 0 4px'
+    keyLine.style.fontSize = '14px'
+    keyLine.style.color = '#5c4033'
+    header.appendChild(keyLine)
+  }
+
   const date = document.createElement('p')
   date.textContent = `Exported: ${new Date().toLocaleDateString()}`
   date.style.margin = '0'

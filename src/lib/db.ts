@@ -46,6 +46,7 @@ export async function duplicateSong(id: string): Promise<Song | undefined> {
   const copy = createEmptySong({
     title: `${original.title} (copy)`,
     composer: original.composer,
+    recommendedKey: original.recommendedKey,
     timeSignature: [...original.timeSignature] as [number, number],
     fluteType: original.fluteType,
     measures: original.measures.map((m) =>
